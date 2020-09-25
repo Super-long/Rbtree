@@ -1,8 +1,8 @@
 #ifndef RED_BLACK_TREE_H_
 #define RED_BLACK_TREE_H_
 
-#include<bits/stdc++.h>
-using namespace std;
+#include<iostream>      // cout,endl
+#include<iomanip>       // setw
 
 template <typename T>
 class Rbtree{
@@ -41,12 +41,21 @@ private:
     void leftRotate(Rbtree<T>::RbtNode<T>* x);
     void rightRotate(Rbtree<T>::RbtNode<T>* y);
 
-    // 用于在删除时找到要删除的节点
+    // 用于在删除时找到要删除的节点 没有找到时返回空指针
     Rbtree<T>::RbtNode<T>* Search(Rbtree<T>::RbtNode<T>* root ,T key);
+
+    // 释放整棵树的资源
+    void destroy(Rbtree<T>::RbtNode<T>* root);
+
+    // 下面两个函数实现包含重复值，不想包含可以改代码
+    // 找到某个节点的后继节点 大于等于此节点的最小值
+    Rbtree<T>::RbtNode<T>* successor(Rbtree<T>::RbtNode<T>* node);
+
+    // 找到某个节点的前驱节点 小于等于此节点的最大值
+    Rbtree<T>::RbtNode<T>* predecessor(Rbtree<T>::RbtNode<T>* node);
 
     // ------------- 测试用函数
     void print(Rbtree<T>::RbtNode<T>* tree, T key, int direction);
-
 public:
 
     Rbtree();
@@ -55,16 +64,97 @@ public:
     bool remove(T key);
     bool insert(T key);
 
+    // expected的含义是当找不到的时候函数的返回值是什么
+    // 这个值显然库作者定义为什么都不合适 需要用户定义
+    int successor(T value, T expected);
+    int predecessor(T value, T expected);
+
     // ------------- 测试用函数
     void print();
 };
+
+// TODO：其实这里在设计上有歧义 "后继"节点到底返回第一个大于还是第一个大于等于呢
+// 找到对应节点的后继节点 也就是大于等于此节点的第一个值
+template <typename T>
+Rbtree<T>::RbtNode<T>* Rbtree<T>::successor(Rbtree<T>::RbtNode<T>* node){
+    // 右节点不为空的话后继节点为以node->right为主节点的子树的最小值
+    if(node->right != nullptr){
+        RbtNode<T>* SucNode = node->right;
+        while(SucNode->left != nullptr){
+            SucNode = SucNode->left;
+        }
+        return SucNode;
+    }
+    // 情况1：如果SucNode是一个左孩子，后继节点即为父节点
+    // 情况2：如果SucNode是一个右孩子，后继节点为最低的拥有左孩子的祖先节点，且SucNode在这个左孩子的子树内
+
+    RbtNode<T>* SucNode = node->parent;
+    while((SucNode != nullptr) && (node == SucNode->right)){
+        node = SucNode;
+        SucNode = SucNode->parent;
+    }
+    return SucNode; // 可能返回nullptr
+}
+
+template <typename T>
+int Rbtree<T>::successor(T value, T expected){
+    RbtNode<T>* Node = Search(TreeRoot ,value);
+    if(!Node) return expected;  // 没找到value
+
+    RbtNode<T>* SucNode = successor(Node);
+    if(!SucNode) return expected;   // 不存在后继节点 即value是最大的
+
+    return SucNode->key;
+}
+
+template <typename T>
+Rbtree<T>::RbtNode<T>* Rbtree<T>::predecessor(Rbtree<T>::RbtNode<T>* node){
+    if(node->left != nullptr){
+        RbtNode<T>* ProNode = node->left;
+        while(ProNode->right != nullptr){
+            ProNode = ProNode->right;
+        }
+        return ProNode;
+    }
+    // 情况1：如果ProNode是一个左孩子，后继节点即为父节点
+    // 情况2：如果ProNode是一个右孩子，后继节点为最低的拥有左孩子的祖先节点，且x在这个左孩子的子树内
+
+    RbtNode<T>* ProNode = node->parent;
+    while(!(ProNode) && ProNode->left == node){
+        node = ProNode;
+        ProNode = ProNode->parent;
+    }
+    return ProNode;
+}
+
+template <typename T>
+int Rbtree<T>::predecessor(T value, T expected){
+    RbtNode<T>* Node = Search(TreeRoot ,value);
+    if(!Node) return expected;
+
+    RbtNode<T>* ProNode = predecessor(Node);
+    if(!ProNode) return expected;
+
+    return ProNode->key;
+}
+
+template <typename T>
+void Rbtree<T>::destroy(Rbtree<T>::RbtNode<T>* root){
+    if(!root) return;
+
+    destroy(root->left);
+    destroy(root->right);
+    delete root;
+    
+    return;
+}
 
 template <typename T>
 Rbtree<T>::Rbtree():TreeRoot(nullptr){}
 
 template <typename T>
 Rbtree<T>::~Rbtree(){
-    cout << "先不析构 后面再说\n";
+    destroy(TreeRoot);
 }
 
 /*
@@ -78,12 +168,13 @@ Rbtree<T>::~Rbtree(){
 
 template <typename T>   
 void Rbtree<T>::print(Rbtree<T>::RbtNode<T>* tree, T key, int direction){
+    using std::setw;
     if(tree != NULL)
     {
         if(direction==0)    // tree是根节点
-            cout << setw(4) << tree->key << "(B) is root" << endl;
+            std::cout << setw(4) << tree->key << "(B) is root" << std::endl;
         else                // tree是分支节点
-            cout << setw(4) << tree->key <<  (rb_is_red(tree)?"(R)":"(B)") << " is " << setw(2) << key << "'s "  << setw(12) << (direction==1?"right child" : "left child") << endl;
+            std::cout << setw(4) << tree->key <<  (rb_is_red(tree)?"(R)":"(B)") << " is " << setw(2) << key << "'s "  << setw(12) << (direction==1?"right child" : "left child") << std::endl;
 
         print(tree->left, tree->key, -1);
         print(tree->right,tree->key,  1);
@@ -99,7 +190,7 @@ void Rbtree<T>::print()
 
 
 /*  
- * 偷一个示意图，非常的直观
+ * 旋转的示意图，非常的直观
  * 对x进行左旋
  *      px                              px
  *     /                               /
@@ -463,13 +554,13 @@ void Rbtree<T>::RemoveRebalance(Rbtree<T>::RbtNode<T>* node, Rbtree<T>::RbtNode<
                 rb_set_black(brother->right);
                 leftRotate(parent);
 
-                // 情况5处理完以后全部平衡 因为少一个黑色节点的路径上多了一个黑色节点
+                // 情况5处理完以后全部平衡 因为少一个黑色节点的路径上多了一个黑色节点 此时删除完成
                 node = TreeRoot;
             }
         }
     }
     if(node){
-        rb_set_black(node);
+        rb_set_black(node); 
     }
 }
 

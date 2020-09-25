@@ -3,10 +3,12 @@ using namespace std;
 
 #include"Rbtree.h"
 
-#define TestInsert (1)      // 插入
-#define TestRemove (1<<2)   // 删除
+#define TestInsert  (1)     // 插入
+#define TestRemove  (1<<2)  // 删除
+#define TestPre     (1<<3)  // 寻找前驱
+#define TestSuc     (1<<4)  // 寻找后继   
 
-int Switch = TestInsert | TestRemove;    // 表示测试项
+int Switch = TestInsert | TestRemove | TestPre | TestSuc;    // 表示测试项
 
 int main(){
     Rbtree<int>* tree = new Rbtree<int>();
@@ -24,13 +26,30 @@ int main(){
         tree->print();
         putchar('\n');
     } 
+
     if(Switch&TestRemove){
         cout << "开始删除\n";
         for (size_t i = 0; i < items.size()/2; i++){
             tree->remove(items[i]);
         }
-        tree->print();
+        tree->print(); 
         putchar('\n');
     }
+
+    if(Switch&TestPre){
+        cout << "寻找前驱\n";
+        cout << tree->predecessor(80, -1) << endl;
+        putchar('\n');
+    }
+
+    if(Switch&TestSuc){
+        cout << "寻找后继\n";
+        tree->insert(85);
+        cout << tree->successor(85, -1) << endl;
+        cout << tree->successor(90, -1) << endl;
+        putchar('\n');
+    }
+
+    delete tree;    // 使用时记得智能指针
     return 0;
 }
