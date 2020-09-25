@@ -2,12 +2,11 @@
 using namespace std;
 
 #include"Rbtree.h"
-enum TestItem{
-    Insert,     // 插入一系列数据并打印树
-    Delete,
-};
 
-int Switch = Insert;    // 表示测试项
+#define TestInsert (1)      // 插入
+#define TestRemove (1<<2)   // 删除
+
+int Switch = TestInsert | TestRemove;    // 表示测试项
 
 int main(){
     Rbtree<int>* tree = new Rbtree<int>();
@@ -17,15 +16,21 @@ int main(){
         cout << x << " ";
     }
     putchar('\n');
-
-    switch (Switch){
-        case Insert:
+    if(Switch&TestInsert){
+        cout << "开始插入\n";
         for(auto x : items){
             tree->insert(x);
         }
         tree->print();
-
-        case Delete:
+        putchar('\n');
+    } 
+    if(Switch&TestRemove){
+        cout << "开始删除\n";
+        for (size_t i = 0; i < items.size()/2; i++){
+            tree->remove(items[i]);
+        }
+        tree->print();
+        putchar('\n');
     }
     return 0;
 }

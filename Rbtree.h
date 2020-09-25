@@ -35,14 +35,14 @@ private:
 
     // 在插入或者删除一个节点以后的再平衡操作
     void InsertRebalance(Rbtree<T>::RbtNode<T>* node);
-    void RemoveRebalance(Rbtree<T>::RbtNode<T>* node);
+    void RemoveRebalance(Rbtree<T>::RbtNode<T>* node, Rbtree<T>::RbtNode<T>* parent);
     
     // 对x节点进行旋转
     void leftRotate(Rbtree<T>::RbtNode<T>* x);
     void rightRotate(Rbtree<T>::RbtNode<T>* y);
 
     // 用于在删除时找到要删除的节点
-    Rbtree<T>::RbtNode<T>* Search(T key);
+    Rbtree<T>::RbtNode<T>* Search(Rbtree<T>::RbtNode<T>* root ,T key);
 
     // ------------- 测试用函数
     void print(Rbtree<T>::RbtNode<T>* tree, T key, int direction);
@@ -284,13 +284,193 @@ void Rbtree<T>::InsertRebalance(Rbtree<T>::RbtNode<T>* node){
 }
 
 template<typename T>
-bool Rbtree<T>::remove(T key){
-
+Rbtree<T>::RbtNode<T>* Rbtree<T>::Search(Rbtree<T>::RbtNode<T>* root ,T key){
+    if(root == nullptr || root->key == key){
+        return root;
+    }
+    if(key < root->key){
+        return Search(root->left, key);
+    } else {
+        return Search(root->right, key);
+    }
 }
 
 template<typename T>
-void Rbtree<T>::RemoveRebalance(Rbtree<T>::RbtNode<T>* node){
+bool Rbtree<T>::remove(T key){
+    RbtNode<T>* node = nullptr; // 存储要删除的节点
+    if((node = Search(TreeRoot, key)) == nullptr){  // 返回空证明没有找到要删除的节点
+        return false;
+    }
 
+    RbtNode<T>* parent = nullptr;
+    RbtNode<T>* child = nullptr;
+    RBTColor color;
+
+    // 当被删节点左右孩子都不为空的时候需要找到一个没有或仅有一个的节点替代”node“被删掉
+    if((node->left != nullptr) && (node->right != nullptr)){
+        RbtNode<T>* replace = nullptr;
+
+        replace = node->right;  // 显然必不为nullptr
+        // 找到大于key的第一个值 也可以找小于key最大的值 
+        // 后期可以比对哪一种可以使得树的深度更低
+        while(replace->left != nullptr){
+            replace = replace->left;
+        }
+
+        // 如果node不是根节点
+        if(rb_parent(node)){
+            if(rb_parent(node)->left == node){
+                rb_parent(node)->left = replace;
+            } else {
+                rb_parent(node)->right = replace;
+            }
+        } else {    // 修改根节点
+            TreeRoot = replace;
+        }
+        // 保存replace信息
+        child = replace->right;
+        parent = rb_parent(replace);
+        color = rb_color(replace);
+
+/**
+ * 特殊情况：
+ * 
+ *      node                        replace ---> parent
+ *      / \                            /\
+ *     /   \            替换后         /  \
+ *    A   replace       ------->     A   child
+ *          \
+ *           \                      node会空出来
+ *          child
+ * 
+ * 
+ * 正常情况：
+ *     node                            replace
+ *       \                                \
+ *        \                                \
+ *          A                                A     ---> parent
+ *         / \          ------->            /  \
+ *        /   \                            /    \
+ *       /     \                         child brother  
+ *   replace  brother
+ *      \
+ *       \
+ *      child
+*/
+        if(parent == node){ // 比较特殊的情况 被删除节点是它的后继节点的父节点
+            parent = replace;   // 见上图
+        } else {
+            if(child){
+                rb_set_parent(child, parent);
+            }
+            parent->left = child;   // node相当于单独筛出来了
+
+            // 不放在这里特殊情况下会使得replace->right指向自己
+            replace->right = node->right;
+            rb_set_parent(node->right, replace);
+        }
+        replace->parent = node->parent;
+        replace->left = node->left;
+        replace->color = node->color;
+        node->left->parent = replace;
+        // replace替换完毕
+        // 把replcace节点嵌入到原node的位置 除了值以外均不变 
+        // 在特殊情况下node也会单独被筛出来
+
+        if(color == RBTColor::BLACK){   // 如果是红色我们什么也不需要做
+            RemoveRebalance(child, parent);
+        }
+        delete node;
+        return true;
+    }
+
+    // 其实上面那一大串操作就是为了抽象成这个条件 即有一个或者没有子节点
+    if(node->left != nullptr){
+        child = node->left;
+    } else {
+        child = node->right;
+    }
+
+    parent = node->parent;
+    color = node->color;
+
+    // 开始把node节点剃出去
+    if(child){  // 可能node没有子节点
+        rb_set_parent(child, parent);   // parent可能为空 但不要紧
+    }
+
+    if(parent){ // node不是根节点
+        if(parent->left == node){
+            parent->left = child;
+        } else {
+            parent->right = child;
+        }
+    } else {
+        TreeRoot = child;
+    }
+    // node已经被剃出去了
+
+    // 开始自平衡
+    if(color == RBTColor::BLACK){
+        RemoveRebalance(child, parent);
+    }
+    delete node;
+
+    return true;
+}
+
+/**
+ * param@   node: 指向顶替被删除的节点的那个节点
+ * param@ parent: node的parent
+*/
+template<typename T>
+void Rbtree<T>::RemoveRebalance(Rbtree<T>::RbtNode<T>* node, Rbtree<T>::RbtNode<T>* parent){
+    RbtNode<T>* brother;
+
+    // 1.node不存在直接退出
+    // 2.能运行到这里证明我们已经删除了一个黑色节点了，此时我们需要检查node是否为黑色
+    // 如果是黑色的话就需要进行平衡
+    // 3.如果node是新的根 直接变为黑色就可以了
+    while((!node || rb_is_black(node)) && node != TreeRoot){
+        if(parent->left == node){   // node为左侧节点
+            brother = parent->right;
+            // 情况1：兄弟节点为红色
+            if(rb_is_red(brother)){
+                rb_set_black(brother);
+                rb_set_red(parent);
+                leftRotate(parent);
+                brother = parent->right;    // 转化为情况3
+            }
+            // 情况2,3：parent是黑或者红 处理方法相同
+            if((!brother->left || rb_is_black(brother->left)) 
+                && (!brother->right || rb_is_black(brother->right))){
+                    rb_set_black(parent);   // 对应情况2
+                    rb_set_red(brother);    // 对应情况3
+
+                    node = parent;  // 经过parent为根的子树的路径比其他小1
+                    parent = rb_parent(node);   // 转入新一轮处理
+            } else {    // brother节点必有子节点且必存在红色
+                // 情况4：brother左节点为红色 右节点为黑色
+                if(!brother->right || rb_is_black(brother->right)){
+                    rb_set_red(brother);
+                    rb_set_black(brother->left);
+                    rightRotate(parent);
+                    brother = parent->right;
+                }
+                // 情况5：brother右节点为红色
+                rb_set_color(brother, rb_color(parent));
+                rb_set_black(parent);
+                rb_set_black(brother->right);
+                leftRotate(parent);
+
+                // 情况5处理完以后全部平衡 因为少一个黑色节点的路径上多了一个黑色节点
+                node = TreeRoot;
+            }
+        }
+    }
+    if(node){
+        rb_set_black(node);
+    }
 }
 
 #endif  //RED_BLACK_TREE_H_
